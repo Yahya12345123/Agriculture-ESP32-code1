@@ -5,7 +5,7 @@
 #error Bluetooth is not enabled!
 #endif
 
-// --- تعريف الدبابيس ---
+// pin definniton
 #define DHTPIN 4
 #define DHTTYPE DHT22
 #define SOIL_PIN 34
@@ -36,7 +36,7 @@ struct PlantSettings {
   float heaterOff;
 };
 
-// إعدادات النباتات
+// plant setpoints
 PlantSettings plantList[] = {
   {'A', 28, 24, 50, 70, 40, 60, 18, 22}, 
   {'G', 32, 28, 60, 80, 50, 70, 20, 24}, 
@@ -47,7 +47,7 @@ const int numPlants = sizeof(plantList) / sizeof(plantList[0]);
 
 float temp, hum, soilPct;
 
-// القيم الافتراضية
+// Default values
 float fanOnTemp = 30, fanOffTemp = 25;
 float pumpOnSoil = 50, pumpOffSoil = 70;
 float vaporOnHum = 80, vaporOffHum = 90; 
@@ -87,7 +87,7 @@ void setup() {
 }
 
 void loop() {
-  // 1. قراءة الحساسات
+  // sensor reading
   temp = dht.readTemperature();
   hum  = dht.readHumidity();
 
@@ -106,7 +106,7 @@ void loop() {
   ledcWrite(LED_R, ledBrightness);
   ledcWrite(LED_B, ledBrightness);
 
-  // 2. استقبال أوامر البلوتوث
+  // blutooth connection
   if (SerialBT.available()) {
     char c = SerialBT.read();
     for (int i = 0; i < numPlants; i++) {
@@ -123,53 +123,44 @@ void loop() {
     }
   }
 
-  // 3. منطق التحكم (Logic)
+  // contrlling feadback algorithms
   
-  // المروحة
   if (temp > fanOnTemp) fanState = true;
   else if (temp < fanOffTemp) fanState = false;
 
-  // السخان
   if (temp < heaterOnTemp) heaterState = true;
   else if (temp > heaterOffTemp) heaterState = false;
 
   if (fanState) heaterState = false; 
   if (heaterState) fanState = false;
 
-  // المضخة
   if (soilPct < pumpOnSoil) pumpState = true;
   else if (soilPct > pumpOffSoil) pumpState = false;
 
-  // الفواحة (تبخير)
   if (hum < vaporOnHum) {
     vaporState = true;
   } else if (hum > vaporOffHum) {
     vaporState = false;
   }
-
-  // 4. تنفيذ الأوامر على الريليهات
+  // relay starting
   setRelay(RELAY_FAN, fanState);
   setRelay(RELAY_HEATER, heaterState);
   setRelay(RELAY_PUMP, pumpState);
   
-  // تشغيل ريلاي البخار أولاً
   setRelay(RELAY_VAPOR, vaporState);
 
-  // --- التعديل المطلوب: نبضة الريلاي الجديد بتأخير بسيط ---
   if (vaporState == true && lastVaporState == false) {
     
-    delay(200); // تأخير صغير (200ms) بعد تشغيل ريلاي البخار وقبل النبضة
+    delay(200); 
     
     Serial.println("Vaporizer Started: Delay finished, sending 300ms Pulse...");
     setRelay(RELAY_NEW, true);  
-    delay(300);                 // مدة النبضة (الضغط)
+    delay(300);                
     setRelay(RELAY_NEW, false); 
   }
   
-  // تحديث الحالة السابقة
   lastVaporState = vaporState;
 
-  // 5. الطباعة للمراقبة
   Serial.printf("T:%.1f H:%.1f S:%.1f | F:%d H:%d P:%d V:%d\n",
                 temp, hum, soilPct,
                 fanState, heaterState, pumpState, vaporState);
